@@ -27,14 +27,15 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 - OOD 점수 **MSP vs Energy**로 AUROC/AUPR 평가
 - 체크포인트 저장/로드 유틸(Drive의 `checkpoints/`)
 
-### 🟡 MVP-2 (진행중): Triage(트리아지) 1차 구현
+### 🟡 MVP-2 (진행중): Triage(트리아지) 2차 구현
 - Unknown 판정 이후 트리아지 구성 요소를 단계적으로 추가 중
 - ✅ **임베딩 기반 2D 시각화(UMAP)** 구현
   - known vs unknown overlay 시각화 완료
   - UMAP은 **축 방향/회전 자체는 의미가 없고**, 군집/이웃 관계를 정성적으로 확인하기 위한 목적
   - 코사인 기반 UMAP(`metric="cosine"`, `random_state=42`)도 추가로 확인
-- ⏳ **유사사례 Top-K 검색(임베딩 기반 retrieval)** 구현 예정
-- ⏳ (가능 시) **클러스터링**으로 “신규 패턴 후보군” 묶기
+- ✅ **유사사례 Top-K 검색(임베딩 기반 retrieval)** 구현
+- ✅ 데모 케이스 자동 저장: assets/triage/*.png, assets/triage/triage_summary.csv
+-  ⏳ (가능 시) **클러스터링**으로 “신규 패턴 후보군” 묶기
 
 ### ▶ MVP-3 (개선/고도화): 성능 및 OOD 강화
 - 클래스 불균형 대응(샘플러/가중치/손실함수)
