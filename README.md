@@ -37,6 +37,7 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 - ✅ 데모 케이스 자동 저장: assets/triage/\*.png, assets/triage/triage\_summary.csv
 - ✅ unknown→unknown 유사사례(Top-K) 및 클러스터링(DBSCAN) 추가
 - ✅ assets/triage_unknown/에 군집 대표 패널 및 요약 CSV 저장
+- ✅ (10.16) 신규 패턴 후보군: unknown을 클러스터링하고 군집 대표 패널/요약 CSV 저장
 -  ⏳ (가능 시) **클러스터링**으로 “신규 패턴 후보군” 묶기
 
 ### ▶ MVP-3 (개선/고도화): 성능 및 OOD 강화
