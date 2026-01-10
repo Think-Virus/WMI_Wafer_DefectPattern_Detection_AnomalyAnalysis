@@ -5,7 +5,19 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 2) **학습에 없는 결함(Unknown)을 OOD 점수로 탐지**하며  
 3) Unknown 발생 시 **유사사례/군집/시각화로 트리아지**를 제공하는 것을 목표로 하는 프로젝트입니다.
 
-> 핵심 컨셉: “분류 정확도”가 아니라 **Unknown을 ‘Unknown’으로 거부(reject)하고 이후 대응을 돕는 워크플로우**를 구현합니다.
+> 핵심 컨셉: “분류 정확도”가 아니라 **Unknown을 ‘Unknown’으로 거부(reject)하고 이후 대응을 돕는 워크플로우** 구현
+
+---
+
+## 0) 최근 변경사항 요약 (V2 개선)
+- ✅ **`none` 제외 학습**: known 분류/지표 해석이 왜곡되지 않도록 학습 split에서 `none` 제거
+- ✅ **좌표 채널(coords4) 입력 + ResNet conv1 수정(4ch)**: `Loc`/`Edge-Loc` 등 유사 패턴 구분 개선 목적
+- ✅ **체크포인트 기반 분석 안정화**
+  - ckpt의 `class_to_idx/known_classes/MODEL_CFG`를 우선 사용
+  - 구버전(3ch repeat3) ckpt와 신버전(4ch coords4) ckpt를 **같은 노트에서 번갈아 로드해도 채널 mismatch 없이 분석**
+- ✅ **Random threshold 스윕(후처리) 추가**: Random 과대예측을 줄이기 위한 post-hoc rule + val 기반 t 선택
+- ✅ **UMAP 시각화 개선**: 클래스별 legend 표시(known + unknown overlay)
+- ✅ **결과/리포트 자동 저장(reports/)**: runmeta, CM, classification_report, UMAP 좌표/이미지 저장
 
 ---
 
@@ -20,34 +32,25 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 ---
 
 ## 2) 현재 상태 (진행 단계)
-### ✅ MVP-1 (완료): Known 분류 + OOD(Unknown 탐지) 평가
+### ✅ MVP-1 (완료): Known 분류 + OOD(Unknown 탐지) 베이스라인
 - labeled 데이터(`failureType` 존재)만 사용
 - 클래스 홀드아웃으로 Open-set 평가 구성 (예: Donut/Scratch → Unknown)
-- ResNet18(경량 CNN) 기반 known 분류
+- ResNet18 기반 known 분류
 - OOD 점수 **MSP vs Energy**로 AUROC/AUPR 평가
 - 체크포인트 저장/로드 유틸(Drive의 `checkpoints/`)
 
-### 🟡 MVP-2 (진행중): Triage(트리아지) 2차 구현
-- Unknown 판정 이후 트리아지 구성 요소를 단계적으로 추가 중
-- ✅ **임베딩 기반 2D 시각화(UMAP)** 구현
-  - known vs unknown overlay 시각화 완료
-  - UMAP은 **축 방향/회전 자체는 의미가 없고**, 군집/이웃 관계를 정성적으로 확인하기 위한 목적
-  - 코사인 기반 UMAP(`metric="cosine"`, `random_state=42`)도 추가로 확인
-- ✅ **유사사례 Top-K 검색(임베딩 기반 retrieval)** 구현
-- ✅ 데모 케이스 자동 저장: assets/triage/\*.png, assets/triage/triage\_summary.csv
-- ✅ unknown→unknown 유사사례(Top-K) 및 클러스터링(DBSCAN) 추가
+### ✅ MVP-2 (진행): Triage(트리아지) 구현/고도화
+- ✅ **임베딩 기반 2D 시각화(UMAP)**: known vs unknown overlay
+- ✅ **유사사례 Top-K 검색(임베딩 기반 retrieval)**
+- ✅ unknown→unknown 유사사례(Top-K) 및 클러스터링(DBSCAN)
 - ✅ assets/triage_unknown/에 군집 대표 패널 및 요약 CSV 저장
-- ✅ (10.16) 신규 패턴 후보군: unknown을 클러스터링하고 군집 대표 패널/요약 CSV 저장
--  ⏳ (가능 시) **클러스터링**으로 “신규 패턴 후보군” 묶기
+- ✅ reports/<run_id>/에 분석 산출물 저장(runmeta/report/cm/umap…)
 
 ### ▶ MVP-3 (개선/고도화): 성능 및 OOD 강화
 - 클래스 불균형 대응(샘플러/가중치/손실함수)
 - 해상도 비교(64→96/128)
 - pretrained backbone 비교
 - OOD 강화: **임베딩 거리(kNN distance)** 기반 OOD 점수 추가
-
-### (선택) 확장 과제
-- 라벨 부족을 활용하는 자기지도/반지도 학습(시간 여력 시)
 
 ---
 
@@ -66,88 +69,62 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 - 학습/검증/테스트(known): 홀드아웃 제외 클래스
 - 테스트(unknown): 홀드아웃 클래스만 모아 Unknown으로 평가
 
-> 디펜스 포인트: WM-811K에는 원래 Unknown 라벨이 없으므로,  
+> WM-811K에는 원래 Unknown 라벨이 없으므로,  
 > **“학습에서 제외한 클래스를 Unknown으로 간주”**하여 객관적으로 평가합니다.
+
+### `none` 처리 정책 (V2)
+- 기본 정책: **학습 split에서 `none` 제외**
+  - `EXCLUDE_CLASSES = ["none"]`
+- 단, 과거 ckpt(구버전) 재현/비교 분석 시:
+  - ckpt의 `class_to_idx`에 `none`이 포함되어 있으면 **분석 시 exclude를 완화**하거나
+  - 최소한 **loader가 ckpt mapping 기준으로 필터링되도록 유지**합니다.
 
 ---
 
-## 4) 구현 개요 (MVP-1 / MVP-2 일부)
+## 4) 구현 개요
 ### 모델 (Known 분류)
-- Backbone: `torchvision.models.resnet18` (weights=None) + `fc` 재정의
+- Backbone: `torchvision.models.resnet18` + `fc` 재정의
 - 입력 전처리:
   - wafer map → (1, H, W) → resize(기본 64×64, nearest)
-  - ResNet 입력 맞추기 위해 1채널을 3채널로 복제
+  - **입력 모드 2종**
+    - `repeat3`: (1ch) → 3ch 복제 (구버전/호환)
+    - `coords4`: (1ch) + 좌표채널(x,y,r) → 4ch (신버전)
 - 증강(Train only): 좌우/상하 flip + 90도 회전
+
+> **중요: ckpt마다 입력 채널 수가 다를 수 있으므로**  
+> loader/dataset은 `input_mode`(coords4 vs repeat3)를 모델(conv1.in_channels) 또는 MODEL_CFG 기준으로 자동 선택해야 합니다.
 
 ### OOD(Unknown 탐지)
 - MSP(Max Softmax Probability)
 - Energy score (logits 기반)
 - AUROC/AUPR로 known vs unknown 분리 성능 평가
 
-### Triage(트리아지) — 진행중(MVP-2)
-- 임베딩 추출: ResNet18의 fc 직전 특징(예: avgpool 출력)을 활용
-- 2D 시각화: UMAP으로 known/unknown의 분포 및 혼재 정도 확인
+### Random threshold (후처리, 선택)
+- “argmax가 Random”인데 Random 확률이 낮으면(임계값 미만) **2등 클래스로 이동**
+- val에서 t를 스윕해 macro-F1 기준 최적 t를 선택 → test에 적용
+
+### Triage(트리아지)
+- 임베딩 추출: ResNet18의 fc 직전 특징(avgpool 출력 등)
+- UMAP: known/unknown 분포 및 혼재 정도 확인(정성 분석)
+- retrieval: unknown별 Top-K 유사 known(또는 unknown) 예시 제공
+- clustering: unknown→unknown 군집화(DBSCAN 등), 군집 대표 패널 저장
 
 ---
 
-## 5) 결과 스냅샷 (현재 베이스라인, MVP-1)
-### Known 분류 (test_known)
-- macro-F1: **0.8715**
-- 관찰:
-  - `none` 클래스가 매우 많아(지원 샘플 수 큼) accuracy/weighted avg는 높게 나올 수 있음
-  - `Loc`, `Edge-Loc` 등 일부 결함 클래스가 상대적으로 약함
+## 5) 결과 스냅샷 (예시)
+> 실험/시드/홀드아웃 조합에 따라 달라질 수 있습니다.  
+> 프로젝트에서는 accuracy보다 **macro-F1 + OOD AUROC** 중심으로 보고합니다.
 
-### OOD(Unknown 탐지) (test_unknown = holdout Donut/Scratch)
-- AUROC (MSP): **0.8619**
-- AUPR  (MSP): **0.9886** *(known=positive 설정 기준)*
-- AUROC (Energy): **0.8524**
-- AUPR  (Energy): **0.9877** *(known=positive 설정 기준)*
-
-### (추가) Triage 시각화(UMAP) 관찰 — MVP-2 진행중
-- unknown이 known 분포와 일부 섞여 나타나는 경향이 있어, 단순 “완전 분리”보다는  
-  **유사사례 Top-K 제시로 사람이 빠르게 판단하도록 돕는 트리아지** 방향이 설득력 있음.
+- Known 분류(test_known): macro-F1 ~ 0.90대 (최근 run 기준)
+- OOD(holdout Donut/Scratch): AUROC(MSP/Energy) ~ 0.85~0.86대 (최근 run 기준)
+- UMAP 관찰:
+  - unknown이 known과 일부 섞여도 **Top-K/군집 대표 패널로 사람이 빠르게 판단**하도록 돕는 방향이 설득력 있음.
 
 ---
 
-## 6) (중요) 현재 단계(MVP-1)의 한계와 개선 방향
-### 1) 클래스 불균형 영향이 큼 (`none` 과다)
-- `none`이 많아 전체 accuracy가 높아 보일 수 있으나,
-  결함 클래스(예: `Loc`, `Edge-Loc`) 성능이 상대적으로 낮을 수 있음.
-
-**개선 방향**
-- `WeightedRandomSampler`로 균형 배치 구성(가성비 최고)
-- 또는 class-weighted loss / focal loss 적용
-- 보고 지표는 accuracy보다 **macro-F1** 중심 유지 (+ 필요 시 `none` 제외 macro-F1 병기)
-
-### 2) Loc vs Edge-Loc 등 유사 패턴 혼동
-- 시각적으로 유사한 결함은 오분류가 발생할 수 있음.
-
-**개선 방향**
-- resize 64 → 96/128 비교
-- pretrained backbone 비교(가능 시)
-
-### 3) 소수 클래스(Near-full 등) 지표 변동성
-- 샘플 수가 매우 적으면 지표가 흔들릴 수 있음.
-
-**개선 방향**
-- seed 고정 및 반복 실험(여력 시)
-- 홀드아웃 조합 여러 개로 검증(확장 시)
-
-### 4) OOD는 베이스라인(MSP/Energy) 수준
-- 구현이 간단한 대신, 데이터/모델에 따라 한계가 있을 수 있음.
-
-**개선 방향**
-- 임베딩 거리(kNN distance) 기반 OOD 점수 추가 (트리아지와 자연스럽게 연결)
-
-### 5) 현재는 “탐지”까지 완료, 트리아지는 진행중(MVP-2)
-- Unknown을 “Unknown”으로 판정하는 단계는 완료(MVP-1)
-- Unknown 이후 “정리/의사결정 지원(트리아지)”는 구현 진행 중(MVP-2)
-
----
-
-## 7) 실행 방법 (Google Colab 권장)
+## 6) 실행 방법 (Google Colab 권장)
 1. Google Drive에 `LSWMD.pkl`을 준비합니다.
-2. Colab에서 아래 노트북을 열고 **Run all** 실행합니다.
+2. Colab에서 노트북을 열고 **Run all** 실행합니다.
 3. 데이터 경로(`pd.read_pickle(...)`)는 본인 Drive 구조에 맞게 수정합니다.
 
 노트북:
@@ -155,6 +132,21 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 
 ---
 
-## 8) 체크포인트(checkpoints) 저장 정책
-- 모델 체크포인트는 Google Drive의 `checkpoints/` 폴더에 저장합니다.
+## 7) 체크포인트(checkpoints) 저장/로드
+- 체크포인트는 Google Drive의 `checkpoints/` 폴더에 저장합니다.
 - GitHub에는 체크포인트를 올리지 않습니다(레포 용량/관리 이슈).
+- PyTorch 2.6+ 환경에서 구형 ckpt 로드시 `torch.load(..., weights_only=False)`가 필요할 수 있습니다.
+  - **주의:** 신뢰 가능한(본인이 생성한) ckpt에만 사용
+
+---
+
+## 8) 산출물 저장 구조 (권장)
+- `assets/triage/` : known 기반 데모 패널/요약
+- `assets/triage_unknown/` : unknown 군집 대표 패널/요약
+- `reports/<run_id>/`
+  - `runmeta.json` (cfg/seed/ckpt/class mapping)
+  - `test_report.txt`
+  - `test_cm_row_norm.png`
+  - `umap_known_unknown.png`, `umap_Z.npy`, `umap_y.npy`
+  - (선택) `ref_emb.npy`, `unk_emb.npy` 등
+
