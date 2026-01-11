@@ -101,6 +101,33 @@ def load_unknown_cluster_cached(npz_path: str) -> Optional[dict]:
     return out
 
 
+@st.cache_resource
+def load_unknown_pool_cached(npz_path: str) -> Dict[str, List[int]]:
+    p = Path(npz_path)
+    if not p.exists():
+        return {}
+
+    obj = np.load(p, allow_pickle=True)
+    df_index = obj["df_index"].astype(np.int64)
+
+    if "true_label" in obj.files:
+        raw = obj["true_label"]
+
+        def norm(x):
+            if isinstance(x, bytes):
+                x = x.decode("utf-8", errors="ignore")
+            return str(x).strip()
+
+        labels = np.array([norm(x) for x in raw], dtype=object)
+    else:
+        labels = np.array(["UNKNOWN"] * len(df_index), dtype=object)
+
+    out: Dict[str, List[int]] = {}
+    for lab in np.unique(labels):
+        out[str(lab)] = df_index[labels == lab].tolist()
+    return out
+
+
 # -----------------------------
 # UI Components
 # -----------------------------
@@ -228,11 +255,59 @@ def main():
 
     else:
         st.sidebar.write("Generate a new case by calling scripts/run_case.py")
-        df_index = st.sidebar.text_input("df_index (optional)", value="")
+
+        # unknown label pool 로드
+        unk_npz = str(P.emb_db / "unknown_embeddings.npz")
+        unk_pool = load_unknown_pool_cached(unk_npz)
+
+        # 선택 UI: Scratch/Donut 중에서 랜덤
+        # (없으면 자동으로 옵션에서 빠지게)
+        label_candidates = []
+        for name in ["Scratch", "Donut"]:
+            if name in unk_pool and len(unk_pool[name]) > 0:
+                label_candidates.append(name)
+
+        pick_mode = st.sidebar.radio(
+            "Pick query",
+            ["Random (any unknown)", "Random by unknown type", "By df_index"],
+            index=1 if label_candidates else 0
+        )
+
         k_known = st.sidebar.number_input("k_known", min_value=1, max_value=50, value=5, step=1)
         k_unk = st.sidebar.number_input("k_unk", min_value=1, max_value=50, value=5, step=1)
+        seed = st.sidebar.number_input("seed", min_value=0, max_value=10_000_000, value=42, step=1)
+
+        df_index_text = ""
+        unk_type = None
+
+        if pick_mode == "By df_index":
+            df_index_text = st.sidebar.text_input("df_index", value="")
+        elif pick_mode == "Random by unknown type":
+            if not label_candidates:
+                st.sidebar.warning("unknown_embeddings.npz에 Scratch/Donut 라벨 풀이 없어. Random(any)로 실행해줘.")
+            else:
+                unk_type = st.sidebar.selectbox("unknown type", label_candidates, index=0)
+                st.sidebar.caption(f"pool size: {len(unk_pool.get(unk_type, []))}")
+
         if st.sidebar.button("Run"):
-            dfi = int(df_index) if df_index.strip() else None
+            rng = np.random.RandomState(int(seed))
+
+            # df_index 결정
+            if pick_mode == "By df_index":
+                dfi = int(df_index_text) if df_index_text.strip() else None
+
+            elif pick_mode == "Random by unknown type" and unk_type is not None:
+                candidates = unk_pool.get(unk_type, [])
+                if not candidates:
+                    st.error(f"No candidates for type={unk_type}")
+                    st.stop()
+                dfi = int(rng.choice(candidates))
+                st.sidebar.success(f"picked df_index={dfi} (type={unk_type})")
+
+            else:
+                # Random(any unknown) -> run_case.py 내부 랜덤 선택 사용
+                dfi = None
+
             code, log = run_case_subprocess(P.root, dfi, int(k_known), int(k_unk))
             st.sidebar.code(log)
             if code != 0:
