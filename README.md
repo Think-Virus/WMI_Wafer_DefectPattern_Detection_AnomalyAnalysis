@@ -18,6 +18,11 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 - ✅ **Random threshold 스윕(후처리) 추가**: Random 과대예측을 줄이기 위한 post-hoc rule + val 기반 t 선택
 - ✅ **UMAP 시각화 개선**: 클래스별 legend 표시(known + unknown overlay)
 - ✅ **결과/리포트 자동 저장(reports/)**: runmeta, CM, classification_report, UMAP 좌표/이미지 저장
+- ✅ **Thin Scratch 커버리지 진단(MATCH/NO MATCH) 추가**
+  - Scratch unknown 중 `line_score` 상위 20%를 **thin-scratch query**로 정의
+  - Loc-family(Loc+Edge-Loc) ref 3000개 중 `line_score` 상위 1%(43개)를 **line-like ref(선형 exemplar 후보)**로 정의
+  - 각 thin-scratch query에 대해 Loc-family **Local Top-50** 안에 line-like ref가 존재하면 **MATCH**, 없으면 **NO MATCH(coverage gap)** 로 분리
+  - 산출물: `reports/thin_scratch_match_nomatch_cases.csv`, `assets/thin_scratch_match_nomatch/{match,nomatch}/`
 
 ---
 
@@ -45,27 +50,10 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 - ✅ unknown→unknown 유사사례(Top-K) 및 클러스터링(DBSCAN)
 - ✅ assets/triage_unknown/에 군집 대표 패널 및 요약 CSV 저장
 - ✅ reports/<run_id>/에 분석 산출물 저장(runmeta/report/cm/umap…)
+- ✅ **Thin Scratch 커버리지 진단(MATCH/NO MATCH)**: thin-scratch query에서 Loc-family 선형 exemplar 존재 여부를 분리(MATCH/NO MATCH)
 
 ### ▶ MVP-3 (개선/고도화): 성능 및 OOD 강화
-- 클래스 불균형 대응(샘플러/가중치/손실함수)
-- 해상도 비교(64→96/128)
-- pretrained backbone 비교
-- OOD 강화: **임베딩 거리(kNN distance)** 기반 OOD 점수 추가
-
----
-
-## 3) 데이터셋 및 평가 설계 (Open-set Protocol)
-### 데이터
-- WM-811K (LSWMD.pkl)
-- 주요 컬럼:
-  - `waferMap`: 2D numpy array (보통 0/1/2 값)
-  - `failureType`: 결함 라벨(list 형태 또는 빈 list)
-
-### MVP-1 범위
-- `failureType`이 있는 샘플만 사용 (`failureType == []`는 제외)
-
-### Open-set 구성(클래스 홀드아웃)
-- `UNKNOWN_CLASSES = ["Donut", "Scratch"]` (예시)
+...
 - 학습/검증/테스트(known): 홀드아웃 제외 클래스
 - 테스트(unknown): 홀드아웃 클래스만 모아 Unknown으로 평가
 
@@ -108,6 +96,9 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 - UMAP: known/unknown 분포 및 혼재 정도 확인(정성 분석)
 - retrieval: unknown별 Top-K 유사 known(또는 unknown) 예시 제공
 - clustering: unknown→unknown 군집화(DBSCAN 등), 군집 대표 패널 저장
+- **Thin Scratch 커버리지(MATCH/NO MATCH)**
+  - thin-scratch query에 대해 Loc-family Local Top-50 안에 line-like ref가 존재하면 MATCH, 없으면 NO MATCH(coverage gap)
+  - 각 케이스에 대해 Local Top-K vs line-like pool Top-K를 나란히 저장하여 근거(정성) 확보
 
 ---
 
@@ -143,10 +134,14 @@ WM-811K(LSWMD.pkl) wafer map 데이터로
 ## 8) 산출물 저장 구조 (권장)
 - `assets/triage/` : known 기반 데모 패널/요약
 - `assets/triage_unknown/` : unknown 군집 대표 패널/요약
+- `assets/thin_scratch_match_nomatch/`
+  - `match/` : Local Top-50에 line-like ref가 존재하는 thin-scratch 케이스
+  - `nomatch/` : Local Top-50에 line-like ref가 없는(coverage gap) thin-scratch 케이스
+- `reports/`
+  - `thin_scratch_match_nomatch_cases.csv` : MATCH/NO MATCH 케이스 요약(unk_i, q_line_score, best_line_like_rank 등)
 - `reports/<run_id>/`
   - `runmeta.json` (cfg/seed/ckpt/class mapping)
   - `test_report.txt`
   - `test_cm_row_norm.png`
   - `umap_known_unknown.png`, `umap_Z.npy`, `umap_y.npy`
   - (선택) `ref_emb.npy`, `unk_emb.npy` 등
-
