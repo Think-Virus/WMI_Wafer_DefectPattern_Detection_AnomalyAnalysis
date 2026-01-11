@@ -129,6 +129,23 @@ def load_unknown_pool_cached(npz_path: str) -> Dict[str, List[int]]:
     return out
 
 
+@st.cache_resource
+def load_npz_cached(npz_path: str) -> Optional[dict]:
+    p = Path(npz_path)
+    if not p.exists():
+        return None
+    obj = np.load(p, allow_pickle=True)
+    return {k: obj[k] for k in obj.files}
+
+
+@st.cache_resource
+def load_json_cached(json_path: str) -> Optional[dict]:
+    p = Path(json_path)
+    if not p.exists():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 # -----------------------------
 # UI Components
 # -----------------------------
@@ -185,6 +202,105 @@ def render_topk_thumbs(df: pd.DataFrame, items: List[dict], title: str, cols: in
                 st.warning("df_index not found")
 
 
+def render_cluster_explorer(df: pd.DataFrame, P: Paths):
+    st.header("Cluster Explorer")
+
+    # 현재는 unknown 클러스터부터 (이미 만들어져 있으니까)
+    cluster_npz = str(P.emb_db / "unknown_cluster.npz")
+    emb_npz = str(P.emb_db / "unknown_embeddings.npz")
+    reps_json = str(P.emb_db / "unknown_cluster_reps.json")
+
+    cobj = load_npz_cached(cluster_npz)
+    eobj = load_npz_cached(emb_npz)
+    reps = load_json_cached(reps_json) or {}
+
+    if cobj is None or eobj is None:
+        st.error("unknown cluster/embedding files not found.")
+        st.code(f"need:\n- {cluster_npz}\n- {emb_npz}")
+        st.stop()
+
+    df_idx = cobj["df_index"].astype(np.int64)
+    cid = cobj["cluster_id"].astype(np.int32)
+
+    # label map (unknown_embeddings.npz의 true_label 활용)
+    label_key = "true_label" if "true_label" in eobj else None
+    dfi2label = {}
+    if label_key:
+        e_dfi = eobj["df_index"].astype(np.int64)
+        e_lab = eobj[label_key]
+
+        def _norm(x):
+            if isinstance(x, bytes):
+                x = x.decode("utf-8", errors="ignore")
+            return str(x).strip()
+
+        for i in range(len(e_dfi)):
+            dfi2label[int(e_dfi[i])] = _norm(e_lab[i])
+
+    # cluster list (noise=-1 제외)
+    valid = cid != -1
+    uniq = np.unique(cid[valid])
+    # 큰 클러스터부터 정렬
+    uniq = sorted([int(x) for x in uniq], key=lambda k: int((cid == k).sum()), reverse=True)
+
+    # summary table
+    rows = []
+    for k in uniq:
+        members = df_idx[cid == k]
+        n = int(len(members))
+        rep = reps.get(str(k), reps.get(k, None))
+        rep = int(rep) if rep is not None else int(members[0])
+
+        # label distribution/purity (가능하면)
+        purity = None
+        top_label = None
+        if dfi2label:
+            labs = [dfi2label.get(int(x), "NA") for x in members.tolist()]
+            from collections import Counter
+            cc = Counter(labs)
+            top_label, top_cnt = cc.most_common(1)[0]
+            purity = float(top_cnt) / float(n) if n > 0 else None
+
+        rows.append({
+            "cluster_id": k,
+            "count": n,
+            "rep_df_index": rep,
+            "top_label": top_label,
+            "purity": purity,
+        })
+
+    st.subheader("Clusters")
+    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+
+    # pick cluster
+    options = [f"cid={r['cluster_id']} (n={r['count']})" for r in rows]
+    pick = st.selectbox("Select cluster", options, index=0)
+    pick_cid = int(pick.split()[0].split("=")[1])
+
+    members = df_idx[cid == pick_cid].astype(np.int64)
+    st.write(f"- cluster_id: `{pick_cid}` / members: `{len(members)}`")
+
+    rep_df = next((r["rep_df_index"] for r in rows if r["cluster_id"] == pick_cid), int(members[0]))
+
+    st.subheader("Representative")
+    render_wafer_card(df, int(rep_df), title="Cluster representative", subtitle="대표 샘플", scale=10)
+
+    st.subheader("Member gallery (sample)")
+    seed = st.number_input("seed", min_value=0, max_value=10_000_000, value=42, step=1)
+    n_show = st.slider("num samples", 0, 60, 20)
+    rng = np.random.RandomState(int(seed))
+
+    if n_show > 0 and len(members) > 0:
+        sel = members if len(members) <= n_show else rng.choice(members, size=n_show, replace=False)
+        cols = st.columns(5)
+        for i, dfi in enumerate(sel.tolist()):
+            with cols[i % 5]:
+                wafer = np.array(df.loc[int(dfi)]["waferMap"])
+                lab = dfi2label.get(int(dfi), None)
+                cap = f"df={int(dfi)}" + (f" | {lab}" if lab else "")
+                st.image(wafer_to_pil(wafer, scale=6), caption=cap, use_container_width=True)
+
+
 def run_case_subprocess(
         project_root: Path,
         df_index: Optional[int],
@@ -237,7 +353,7 @@ def main():
 
     mode = st.sidebar.radio(
         "Mode",
-        ["Browse saved cases", "Open summary.json", "Run new case (optional)"],
+        ["Browse saved cases", "Open summary.json", "Run new case (optional)", "Explore clusters"],
         index=0
     )
 
@@ -270,6 +386,10 @@ def main():
             st.info("Upload a summary.json to view.")
             st.stop()
         summary = json.loads(up.read().decode("utf-8"))
+
+    elif mode == "Explore clusters":
+        render_cluster_explorer(df, P)
+        st.stop()
 
     else:
         st.sidebar.write("Generate a new case by calling scripts/run_case.py")
