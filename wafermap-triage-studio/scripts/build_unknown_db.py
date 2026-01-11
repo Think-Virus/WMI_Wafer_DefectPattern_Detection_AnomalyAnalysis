@@ -172,8 +172,8 @@ def main():
     }
     (P.emb_db / "unknown_db_meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print("✅ saved:", out_npz)
-    print("✅ meta :", P.emb_db / "unknown_db_meta.json")
+    print("[saved]", out_npz)
+    print("[meta]", P.emb_db / "unknown_db_meta.json")
     print("[npz] emb:", emb.shape, "df_index:", df_index.shape, "true_label:", true_label.shape)
 
 
