@@ -1,6 +1,13 @@
 # scripts/run_case.py
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]  # wafermap-triage-studio/
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import argparse
 import json
 from datetime import datetime
@@ -164,7 +171,7 @@ def main():
     }
 
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print("✅ saved:", out_dir / "summary.json")
+    print("[saved]", out_dir / "summary.json")
 
 
 if __name__ == "__main__":
