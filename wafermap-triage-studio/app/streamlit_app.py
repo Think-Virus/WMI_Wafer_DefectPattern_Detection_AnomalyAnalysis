@@ -301,6 +301,149 @@ def render_cluster_explorer(df: pd.DataFrame, P: Paths):
                 st.image(wafer_to_pil(wafer, scale=6), caption=cap, use_container_width=True)
 
 
+def render_unlabeled_review(df: pd.DataFrame, P: Paths) -> Tuple[Optional[Dict[str, Any]], Optional[Path]]:
+    st.header("Review unlabeled (no-label)")
+
+    unl_npz = str(P.emb_db / "unlabeled_embeddings.npz")
+    obj = load_npz_cached(unl_npz)
+    if obj is None:
+        st.error("unlabeled_embeddings.npz not found.")
+        st.code(f"need:\n- {unl_npz}\n(run: python scripts/build_unlabeled_db.py --n 5000)")
+        st.stop()
+
+    df_index = obj["df_index"].astype(np.int64)
+    pred_label = obj.get("pred_label", None)
+    pred_idx = obj.get("pred_idx", None)
+    conf = obj.get("conf", None)
+
+    # optional fields
+    best_known_sim = obj.get("best_known_sim", None)
+    best_known_df_index = obj.get("best_known_df_index", None)
+
+    # pred_label이 object array로 저장되어 있을 수 있어서 문자열화
+    if pred_label is None and pred_idx is not None:
+        pred_label = pred_idx.astype(str)
+    else:
+        pred_label = np.array([str(x) for x in pred_label], dtype=object)
+
+    if conf is None:
+        conf = np.zeros((len(df_index),), dtype=np.float32)
+    else:
+        conf = conf.astype(np.float32)
+
+    # table df 만들기
+    data = {
+        "df_index": df_index,
+        "pred_label": pred_label,
+        "conf": conf,
+    }
+    if best_known_sim is not None:
+        data["best_known_sim"] = best_known_sim.astype(np.float32)
+    if best_known_df_index is not None:
+        data["best_known_df_index"] = best_known_df_index.astype(np.int64)
+
+    tab = pd.DataFrame(data)
+
+    # ---- Controls
+    st.subheader("Filters")
+
+    all_labels = sorted(tab["pred_label"].unique().tolist())
+    sel_labels = st.multiselect("pred_label", all_labels, default=all_labels)
+
+    min_conf = st.slider("min_conf", 0.0, 1.0, 0.70, 0.01)
+
+    if "best_known_sim" in tab.columns:
+        sim_min = float(tab["best_known_sim"].min())
+        sim_max = float(tab["best_known_sim"].max())
+        sim_p10 = float(tab["best_known_sim"].quantile(0.10))  # 하위 10% 기준
+        st.caption(f"best_known_sim range: {sim_min:.4f} ~ {sim_max:.4f} (p10={sim_p10:.4f})")
+
+        max_known_sim = st.slider(
+            "max_best_known_sim (lower = more novel)",
+            sim_min, sim_max, sim_p10, 0.0005
+        )
+    else:
+        max_known_sim = None
+        st.info("best_known_sim 없음 (known_sim 계산을 스킵한 npz). novel 필터는 비활성화됨.")
+
+    sort_key = st.selectbox(
+        "sort",
+        ["novel first (low best_known_sim)", "high conf first", "random"],
+        index=0 if "best_known_sim" in tab.columns else 1
+    )
+
+    seed = st.number_input("seed", min_value=0, max_value=10_000_000, value=42, step=1, key="unl_seed")
+    n_show = st.slider("num to show", 0, 200, 30)
+
+    # ---- Apply filters
+    f = tab[tab["pred_label"].isin(sel_labels)]
+    f = f[f["conf"] >= float(min_conf)]
+    if max_known_sim is not None:
+        f = f[f["best_known_sim"] <= float(max_known_sim)]
+
+    if sort_key.startswith("novel") and "best_known_sim" in f.columns:
+        f = f.sort_values(["best_known_sim", "conf"], ascending=[True, False])
+    elif sort_key.startswith("high"):
+        f = f.sort_values(["conf"], ascending=[False])
+    else:
+        # random shuffle
+        f = f.sample(frac=1.0, random_state=int(seed)) if len(f) > 0 else f
+
+    st.write(f"Filtered candidates: **{len(f)} / {len(tab)}**")
+
+    # show table head
+    st.dataframe(f.head(200), use_container_width=True)
+
+    # ---- Gallery
+    st.subheader("Gallery")
+    if len(f) == 0 or n_show == 0:
+        st.info("No samples to show.")
+        return None, None
+
+    f_show = f.head(int(n_show)).copy()
+
+    cols = st.columns(5)
+    for i, row in enumerate(f_show.itertuples(index=False)):
+        dfi = int(row.df_index)
+        cap_parts = [f"df={dfi}", f"{row.pred_label}", f"conf={float(row.conf):.2f}"]
+        if "best_known_sim" in f_show.columns:
+            cap_parts.append(f"kn={float(row.best_known_sim):.2f}")
+        caption = " | ".join(cap_parts)
+
+        with cols[i % 5]:
+            if dfi in df.index:
+                wafer = np.array(df.loc[dfi]["waferMap"])
+                st.image(wafer_to_pil(wafer, scale=6), caption=caption, use_container_width=True)
+            else:
+                st.write(caption)
+                st.warning("df_index not found in df")
+
+    # ---- Run case from selection
+    st.subheader("Run case from a selected unlabeled sample")
+    pick_list = f_show["df_index"].astype(int).tolist()
+    pick_dfi = st.selectbox("Select df_index", pick_list, index=0, key="unl_pick_dfi")
+
+    k_known = st.number_input("k_known", min_value=1, max_value=50, value=5, step=1, key="unl_k_known")
+    k_unk = st.number_input("k_unk", min_value=1, max_value=50, value=5, step=1, key="unl_k_unk")
+
+    if st.button("Run case with this df_index", key="unl_run_case_btn"):
+        code, log = run_case_subprocess(P.root, int(pick_dfi), int(k_known), int(k_unk), int(seed))
+        st.code(log)
+        if code != 0:
+            st.error("run_case failed.")
+            return None, None
+
+        cases = list_case_summaries(P.cases)
+        if not cases:
+            st.error("Case created but cannot find summary.json under artifacts/cases")
+            return None, None
+
+        sp = cases[0]
+        return safe_read_json(sp), sp
+
+    return None, None
+
+
 def run_case_subprocess(
         project_root: Path,
         df_index: Optional[int],
@@ -353,7 +496,13 @@ def main():
 
     mode = st.sidebar.radio(
         "Mode",
-        ["Browse saved cases", "Open summary.json", "Run new case (optional)", "Explore clusters"],
+        [
+            "Browse saved cases",
+            "Open summary.json",
+            "Run new case (optional)",
+            "Explore clusters",
+            "Review unlabeled (no-label)",
+        ],
         index=0
     )
 
@@ -389,6 +538,10 @@ def main():
 
     elif mode == "Explore clusters":
         render_cluster_explorer(df, P)
+        st.stop()
+
+    elif mode == "Review unlabeled (no-label)":
+        summary, summary_path = render_unlabeled_review(df, P)
         st.stop()
 
     else:
