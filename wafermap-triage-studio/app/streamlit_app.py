@@ -205,10 +205,22 @@ def render_topk_thumbs(df: pd.DataFrame, items: List[dict], title: str, cols: in
 def render_cluster_explorer(df: pd.DataFrame, P: Paths):
     st.header("Cluster Explorer")
 
-    # 현재는 unknown 클러스터부터 (이미 만들어져 있으니까)
-    cluster_npz = str(P.emb_db / "unknown_cluster.npz")
-    emb_npz = str(P.emb_db / "unknown_embeddings.npz")
-    reps_json = str(P.emb_db / "unknown_cluster_reps.json")
+    dataset = st.selectbox(
+        "Cluster dataset",
+        ["Unknown (true_label)", "Unlabeled (pred_label)"],
+        index=0,
+    )
+
+    if dataset.startswith("Unknown"):
+        cluster_npz = str(P.emb_db / "unknown_cluster.npz")
+        emb_npz = str(P.emb_db / "unknown_embeddings.npz")
+        reps_json = str(P.emb_db / "unknown_cluster_reps.json")
+        preferred_label_key = "true_label"
+    else:
+        cluster_npz = str(P.emb_db / "unlabeled_cluster.npz")
+        emb_npz = str(P.emb_db / "unlabeled_embeddings.npz")
+        reps_json = str(P.emb_db / "unlabeled_cluster_reps.json")
+        preferred_label_key = "pred_label"
 
     cobj = load_npz_cached(cluster_npz)
     eobj = load_npz_cached(emb_npz)
@@ -223,7 +235,7 @@ def render_cluster_explorer(df: pd.DataFrame, P: Paths):
     cid = cobj["cluster_id"].astype(np.int32)
 
     # label map (unknown_embeddings.npz의 true_label 활용)
-    label_key = "true_label" if "true_label" in eobj else None
+    label_key = preferred_label_key if (preferred_label_key in eobj) else None
     dfi2label = {}
     if label_key:
         e_dfi = eobj["df_index"].astype(np.int64)
