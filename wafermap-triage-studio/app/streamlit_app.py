@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -184,21 +185,38 @@ def render_topk_thumbs(df: pd.DataFrame, items: List[dict], title: str, cols: in
                 st.warning("df_index not found")
 
 
-def run_case_subprocess(project_root: Path, df_index: Optional[int], k_known: int, k_unk: int) -> Tuple[int, str]:
+def run_case_subprocess(
+        project_root: Path,
+        df_index: Optional[int],
+        k_known: int,
+        k_unk: int,
+        seed: int,
+) -> Tuple[int, str]:
     """
-    streamlit 안에서 새 케이스 생성(선택 기능).
+    streamlit 안에서 scripts/run_case.py를 subprocess로 실행
+    - PYTHONPATH에 project_root를 넣어서 wmi_triage import 안정화
+    - seed를 넘겨서 랜덤 선택도 재현 가능
     """
-    cmd = [sys.executable, str(project_root / "scripts" / "run_case.py"),
-           "--k-known", str(k_known), "--k-unk", str(k_unk)]
+    cmd = [
+        sys.executable,
+        str(project_root / "scripts" / "run_case.py"),
+        "--k-known", str(k_known),
+        "--k-unk", str(k_unk),
+        "--seed", str(seed),
+    ]
     if df_index is not None:
         cmd += ["--df-index", str(df_index)]
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(project_root) + os.pathsep + env.get("PYTHONPATH", "")
 
     proc = subprocess.run(
         cmd,
         cwd=str(project_root),
         capture_output=True,
         text=True,
-        shell=False
+        shell=False,
+        env=env,
     )
     out = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
     return proc.returncode, out
@@ -256,23 +274,17 @@ def main():
     else:
         st.sidebar.write("Generate a new case by calling scripts/run_case.py")
 
-        # unknown label pool 로드
         unk_npz = str(P.emb_db / "unknown_embeddings.npz")
         unk_pool = load_unknown_pool_cached(unk_npz)
 
-        # 선택 UI: Scratch/Donut 중에서 랜덤
-        # (없으면 자동으로 옵션에서 빠지게)
-        label_candidates = []
-        for name in ["Scratch", "Donut"]:
-            if name in unk_pool and len(unk_pool[name]) > 0:
-                label_candidates.append(name)
-
+        # 선택 모드
         pick_mode = st.sidebar.radio(
             "Pick query",
             ["Random (any unknown)", "Random by unknown type", "By df_index"],
-            index=1 if label_candidates else 0
+            index=1,
         )
 
+        # 옵션들
         k_known = st.sidebar.number_input("k_known", min_value=1, max_value=50, value=5, step=1)
         k_unk = st.sidebar.number_input("k_unk", min_value=1, max_value=50, value=5, step=1)
         seed = st.sidebar.number_input("seed", min_value=0, max_value=10_000_000, value=42, step=1)
@@ -280,35 +292,82 @@ def main():
         df_index_text = ""
         unk_type = None
 
+        # Scratch/Donut 우선 노출, 없으면 자동 fallback
+        preferred = [t for t in ["Scratch", "Donut"] if t in unk_pool and len(unk_pool[t]) > 0]
+        all_types = sorted([t for t, lst in unk_pool.items() if len(lst) > 0])
+
         if pick_mode == "By df_index":
             df_index_text = st.sidebar.text_input("df_index", value="")
+
         elif pick_mode == "Random by unknown type":
-            if not label_candidates:
-                st.sidebar.warning("unknown_embeddings.npz에 Scratch/Donut 라벨 풀이 없어. Random(any)로 실행해줘.")
+            options = preferred if preferred else all_types
+            if not options:
+                st.sidebar.warning("unknown pool이 비어있어. unknown_embeddings.npz를 확인해줘.")
             else:
-                unk_type = st.sidebar.selectbox("unknown type", label_candidates, index=0)
+                unk_type = st.sidebar.selectbox("unknown type", options, index=0)
                 st.sidebar.caption(f"pool size: {len(unk_pool.get(unk_type, []))}")
 
-        if st.sidebar.button("Run"):
-            rng = np.random.RandomState(int(seed))
+        # -----------------
+        # Preview (Run 전에 보여주기)
+        # -----------------
+        preview_dfi: Optional[int] = None
+        preview_note: str = ""
 
-            # df_index 결정
+        rng = np.random.RandomState(int(seed))
+
+        if pick_mode == "By df_index":
+            if df_index_text.strip():
+                try:
+                    cand = int(df_index_text)
+                    if cand in df.index:
+                        preview_dfi = cand
+                        preview_note = "manual df_index"
+                    else:
+                        preview_note = "df_index not found in df"
+                except ValueError:
+                    preview_note = "invalid df_index"
+
+        elif pick_mode == "Random by unknown type" and unk_type is not None:
+            candidates = unk_pool.get(unk_type, [])
+            if candidates:
+                preview_dfi = int(rng.choice(candidates))
+                preview_note = f"type={unk_type}"
+            else:
+                preview_note = f"no candidates for type={unk_type}"
+
+        else:
+            # Random(any unknown): 전체 unknown pool에서 랜덤
+            all_candidates = []
+            for lst in unk_pool.values():
+                all_candidates.extend(lst)
+            if all_candidates:
+                preview_dfi = int(rng.choice(all_candidates))
+                preview_note = "any unknown"
+            else:
+                preview_note = "unknown pool is empty"
+
+        st.sidebar.markdown("### Preview")
+        if preview_dfi is not None and preview_dfi in df.index:
+            wafer = np.array(df.loc[preview_dfi]["waferMap"])
+            st.sidebar.write(f"- df_index: `{preview_dfi}`")
+            st.sidebar.write(f"- note: `{preview_note}`")
+            st.sidebar.image(wafer_to_pil(wafer, scale=6), use_container_width=True)
+        else:
+            st.sidebar.info(preview_note if preview_note else "No preview")
+
+        # -----------------
+        # Run (Preview에서 확정된 df_index를 그대로 사용)
+        # -----------------
+        if st.sidebar.button("Run"):
+            # 실행 df_index 결정
             if pick_mode == "By df_index":
                 dfi = int(df_index_text) if df_index_text.strip() else None
-
-            elif pick_mode == "Random by unknown type" and unk_type is not None:
-                candidates = unk_pool.get(unk_type, [])
-                if not candidates:
-                    st.error(f"No candidates for type={unk_type}")
-                    st.stop()
-                dfi = int(rng.choice(candidates))
-                st.sidebar.success(f"picked df_index={dfi} (type={unk_type})")
-
+            elif pick_mode == "Random by unknown type":
+                dfi = preview_dfi  # ✅ preview와 동일하게
             else:
-                # Random(any unknown) -> run_case.py 내부 랜덤 선택 사용
-                dfi = None
+                dfi = preview_dfi  # ✅ preview와 동일하게
 
-            code, log = run_case_subprocess(P.root, dfi, int(k_known), int(k_unk))
+            code, log = run_case_subprocess(P.root, dfi, int(k_known), int(k_unk), int(seed))
             st.sidebar.code(log)
             if code != 0:
                 st.error("run_case failed. See log in sidebar.")
@@ -318,7 +377,7 @@ def main():
             cases = list_case_summaries(P.cases)
             if not cases:
                 st.error("Case created but cannot find summary.json under artifacts/cases")
-                st.stop()
+                st.stop()  # ✅ 괄호 꼭!
             summary_path = cases[0]
             summary = safe_read_json(summary_path)
 
