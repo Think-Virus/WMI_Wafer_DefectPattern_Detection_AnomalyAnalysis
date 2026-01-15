@@ -125,38 +125,128 @@ def main():
     known_topk = retrieve_known_topk(q_emb, known_db, idx_to_class, k=args.k_known)
     unknown_topk = retrieve_unknown_topk(q_emb, unk_db, k=args.k_unk, exclude_df_index=df_index)
 
-    # cluster lookup (df_index -> cluster_id + rep)
-    cluster_info = {"available": False}
-    if cluster_npz.exists():
+    # ----------------------------
+    # cluster lookup (unknown + unlabeled)
+    # ----------------------------
+    unk_cluster_npz = P.emb_db / "unknown_cluster.npz"
+    unk_cluster_reps_json = P.emb_db / "unknown_cluster_reps.json"
+    unk_cluster_meta_json = P.emb_db / "unknown_cluster_meta.json"
+
+    unl_cluster_npz = P.emb_db / "unlabeled_cluster.npz"
+    unl_cluster_reps_json = P.emb_db / "unlabeled_cluster_reps.json"
+    unl_cluster_meta_json = P.emb_db / "unlabeled_cluster_meta.json"
+    unl_emb_npz = P.emb_db / "unlabeled_embeddings.npz"
+
+    def _load_cluster_mapping(cluster_npz: Path):
+        if not cluster_npz.exists():
+            return None, None, None
         cobj = np.load(cluster_npz, allow_pickle=True)
         c_df_index = cobj["df_index"].astype(np.int64)
-        cluster_id = cobj["cluster_id"].astype(np.int32)
+        c_cid = cobj["cluster_id"].astype(np.int32)
         method = str(cobj["method"][0]) if "method" in cobj.files else "unknown"
+        m = {int(dfi): int(cid) for dfi, cid in zip(c_df_index.tolist(), c_cid.tolist())}
+        return m, method, cobj
 
-        # mapping
-        m = {int(dfi): int(cid) for dfi, cid in zip(c_df_index.tolist(), cluster_id.tolist())}
+    def _load_json(p: Path) -> dict:
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+        return {}
+
+    def _cluster_info_for_df_index(df_index: int, cluster_npz: Path, reps_json: Path, meta_json: Path, dataset: str):
+        m, method, _ = _load_cluster_mapping(cluster_npz)
+        if m is None:
+            return {"available": False, "dataset": dataset}
+
         cid = m.get(int(df_index), None)
+        reps = _load_json(reps_json)
+        meta = _load_json(meta_json)
 
-        reps = {}
-        if cluster_reps_json.exists():
-            reps = json.loads(cluster_reps_json.read_text(encoding="utf-8"))
-
-        meta = {}
-        if cluster_meta_json.exists():
-            meta = json.loads(cluster_meta_json.read_text(encoding="utf-8"))
-
+        rep_df_index = None
         if cid is not None:
-            # json key가 "2" 문자열일 수도, 2 int일 수도 있어 둘 다 대응
             rep_df_index = reps.get(str(cid), reps.get(cid, None))
-            cluster_info = {
-                "available": True,
-                "method": method,
-                "cluster_id": int(cid),
-                "rep_df_index": int(rep_df_index) if rep_df_index is not None else None,
-                "meta": meta,
-            }
-        else:
-            cluster_info = {"available": True, "method": method, "cluster_id": None, "meta": meta}
+
+        return {
+            "available": True,
+            "dataset": dataset,  # "unknown" or "unlabeled"
+            "method": method,
+            "cluster_id": int(cid) if cid is not None else None,
+            "rep_df_index": int(rep_df_index) if rep_df_index is not None else None,
+            "meta": meta,
+            "cluster_npz": str(cluster_npz),
+        }, m
+
+    # (A) unknown_topk에 unknown cluster_id 붙이기 + query의 unknown cluster 찾기
+    cluster_info_unknown, unk_map = _cluster_info_for_df_index(
+        df_index, unk_cluster_npz, unk_cluster_reps_json, unk_cluster_meta_json, dataset="unknown"
+    )
+    if isinstance(unk_map, dict):
+        for it in unknown_topk:
+            dfi = int(it["df_index"])
+            it["cluster_id"] = unk_map.get(dfi, None)
+
+    # (B) query의 unlabeled cluster 찾기
+    cluster_info_unlabeled, unl_map = _cluster_info_for_df_index(
+        df_index, unl_cluster_npz, unl_cluster_reps_json, unl_cluster_meta_json, dataset="unlabeled"
+    )
+
+    # (추천) unlabeled_cluster에 df_index가 직접 없을 때도 “가장 가까운 unlabeled cluster rep”로 할당
+    if (
+            cluster_info_unlabeled.get("available", False)
+            and cluster_info_unlabeled.get("cluster_id") is None
+            and unl_emb_npz.exists()
+            and unl_cluster_reps_json.exists()
+    ):
+        u = np.load(unl_emb_npz, allow_pickle=True)
+        u_dfi = u["df_index"].astype(np.int64)
+        u_emb = u["emb"].astype(np.float32)
+
+        pos_map = {int(d): i for i, d in enumerate(u_dfi.tolist())}
+        qpos = pos_map.get(int(df_index), None)
+        if qpos is not None:
+            qv = u_emb[qpos]
+            qv = qv / (np.linalg.norm(qv) + 1e-12)
+
+            reps = _load_json(unl_cluster_reps_json)  # {"0": 281674, "1": ...}
+            rep_cids = []
+            rep_dfis = []
+            rep_vecs = []
+            for k, rep_dfi in reps.items():
+                cid = int(k)
+                rep_dfi = int(rep_dfi)
+                rpos = pos_map.get(rep_dfi, None)
+                if rpos is None:
+                    continue
+                rv = u_emb[rpos]
+                rv = rv / (np.linalg.norm(rv) + 1e-12)
+                rep_cids.append(cid)
+                rep_dfis.append(rep_dfi)
+                rep_vecs.append(rv)
+
+            if rep_vecs:
+                C = np.stack(rep_vecs, axis=0)
+                sim = (C @ qv).astype(np.float32)
+                j = int(np.argmax(sim))
+                cluster_info_unlabeled["cluster_id"] = int(rep_cids[j])
+                cluster_info_unlabeled["rep_df_index"] = int(rep_dfis[j])
+                cluster_info_unlabeled["assign_mode"] = "nearest_rep"
+                cluster_info_unlabeled["assign_cosine_sim"] = float(sim[j])
+
+    # (C) summary에 넣을 "cluster"는: unknown에 속하면 unknown, 아니면 unlabeled 우선
+    #     (둘 다 없으면 cluster_id=None)
+    if cluster_info_unknown.get("cluster_id") is not None:
+        cluster_info = cluster_info_unknown
+    elif cluster_info_unlabeled.get("cluster_id") is not None:
+        cluster_info = cluster_info_unlabeled
+    else:
+        # 둘 다 못 찾은 경우도 available=True로 두면 UI에서 '없음' 표시 가능
+        cluster_info = {
+            "available": True,
+            "dataset": None,
+            "method": None,
+            "cluster_id": None,
+            "rep_df_index": None,
+            "cluster_npz": None,
+        }
 
     # save summary
     case_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_df{df_index}"

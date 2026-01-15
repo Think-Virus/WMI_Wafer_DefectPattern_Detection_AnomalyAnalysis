@@ -202,6 +202,8 @@ def render_topk_thumbs(df: pd.DataFrame, items: List[dict], title: str, cols: in
             extra.append(str(it["label"]))
         if "true_label" in it:
             extra.append(f"true={it['true_label']}")
+        if "cluster_id" in it and it["cluster_id"] is not None:
+            extra.append(f"cid={it['cluster_id']}")
         caption = f"#{it.get('rank', i + 1)} df={dfi} sim={sim:.3f} " + (" | ".join(extra) if extra else "")
 
         with c:
@@ -792,7 +794,12 @@ def main():
 
             # show cluster members (optional)
             cid = cluster.get("cluster_id", None)
-            cnpz = load_unknown_cluster_cached(str(P.emb_db / "unknown_cluster.npz"))
+
+            cluster_npz_path = cluster.get("cluster_npz", None)
+            if cluster_npz_path is None:
+                cluster_npz_path = str(P.emb_db / "unknown_cluster.npz")  # fallback
+            cnpz = load_npz_cached(cluster_npz_path)
+
             if cnpz is not None and cid is not None:
                 all_df_index = cnpz["df_index"].astype(np.int64)
                 all_cid = cnpz["cluster_id"].astype(np.int32)
