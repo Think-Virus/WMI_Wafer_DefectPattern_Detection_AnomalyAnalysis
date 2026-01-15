@@ -3,9 +3,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 import numpy as np
 from sklearn.cluster import DBSCAN, KMeans
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]  # wafermap-triage-studio/
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from wmi_triage.config import Paths
 

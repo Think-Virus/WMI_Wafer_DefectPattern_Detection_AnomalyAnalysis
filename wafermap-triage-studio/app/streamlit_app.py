@@ -13,6 +13,10 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
+ROOT = Path(__file__).resolve().parents[1]  # wafermap-triage-studio/
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from wmi_triage.config import Paths
 
 
