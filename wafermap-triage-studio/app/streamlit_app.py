@@ -456,9 +456,9 @@ def render_unlabeled_review(df: pd.DataFrame, P: Paths) -> Tuple[Optional[Dict[s
     k_unk = st.number_input("k_unk", min_value=1, max_value=50, value=5, step=1, key="unl_k_unk")
 
     if st.button("Run case with this df_index", key="unl_run_case_btn"):
-        st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
-        st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
-        st.stop()
+        # st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
+        # st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
+        # st.stop()
 
         code, log = run_case_subprocess(P.root, int(pick_dfi), int(k_known), int(k_unk), int(seed))
         st.code(log)
@@ -684,9 +684,9 @@ def main():
         # Run (Preview에서 확정된 df_index를 그대로 사용)
         # -----------------
         if st.sidebar.button("Run"):
-            st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
-            st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
-            st.stop()
+            # st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
+            # st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
+            # st.stop()
 
             # 실행 df_index 결정
             if pick_mode == "By df_index":
@@ -745,6 +745,29 @@ def main():
         if summary_path is not None:
             st.write("**summary.json**")
             st.code(str(summary_path))
+
+    # ---- OOD block (Header 아래에 추가 추천) ----
+    ood = summary.get("ood")
+    if ood is None and isinstance(q, dict):
+        ood = q.get("ood")
+
+    st.markdown("## OOD (Known/Unknown 판정)")
+    if ood:
+        st.write(f"- method: `{ood.get('method')}`")
+        st.write(f"- MSP: `{ood.get('msp')}`")
+        st.write(f"- Energy: `{ood.get('energy')}`")
+        st.write(f"- threshold: `{ood.get('threshold')}`")
+        st.write(f"- temperature(T): `{ood.get('temperature')}`")
+
+        is_ood = ood.get("is_ood", None)
+        if is_ood is True:
+            st.error("Reject → Unknown(OOD) 로 판정")
+        elif is_ood is False:
+            st.success("Accept → Known(ID) 로 판정")
+        else:
+            st.info("threshold가 없어 판정 없이 점수만 표시 중")
+    else:
+        st.info("ood 결과가 summary.json에 없음 (run_case에 ood 저장 후 rerun 필요)")
 
     # Triage hint
     known_topk = summary.get("known_topk", [])

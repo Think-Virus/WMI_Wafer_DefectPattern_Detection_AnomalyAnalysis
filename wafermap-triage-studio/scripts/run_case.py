@@ -25,6 +25,7 @@ from wmi_triage.retrieval import (
     retrieve_known_topk,
     retrieve_unknown_topk,
 )
+from wmi_triage.ood import decide_ood, to_jsonable
 
 
 def failuretype_to_label(ft):
@@ -60,6 +61,8 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--tau", type=float, default=0.05)
     ap.add_argument("--cluster-topn", type=int, default=5)
+    ap.add_argument("--ood-method", choices=["none", "msp", "energy"], default="energy")
+
     args = ap.parse_args()
 
     P = Paths()
@@ -117,6 +120,18 @@ def main():
     out = predict(model, x, device=device)
     prob = out["prob"][0].numpy()
     q_emb = out["emb"][0].numpy()
+
+    thr_path = P.models / "ood_threshold_energy.json"
+    thr_obj = json.loads(thr_path.read_text(encoding="utf-8"))
+    thr = float(thr_obj["threshold"])
+    T = float(thr_obj.get("temperature", 1.0))
+    ood_res = decide_ood(
+        logits=out["logits"],  # predict가 logits를 주고 있음
+        method=args.ood_method,
+        threshold=thr,
+        temperature=T,
+    )
+    ood_json = to_jsonable(ood_res)
 
     # model top3
     topi = np.argsort(prob)[::-1][:3]
@@ -290,7 +305,7 @@ def main():
 
     summary = {
         "case_id": case_id,
-        "query": {"df_index": int(df_index), "true_label": true_label, "model_top3": model_top3},
+        "query": {"df_index": int(df_index), "true_label": true_label, "model_top3": model_top3, "ood": ood_json, },
         "known_topk": known_topk,
         "unknown_topk": unknown_topk,
         "cluster": cluster_info,
@@ -303,6 +318,7 @@ def main():
             "unknown_db": str(unk_npz),
             "cluster_npz": str(cluster_npz),
         },
+        "ood": ood_json,
     }
 
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

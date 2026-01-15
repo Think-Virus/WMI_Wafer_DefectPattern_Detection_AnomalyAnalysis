@@ -1,0 +1,40 @@
+{
+  "method": "energy",
+  "threshold": -5.165189266204834,
+  "temperature": 1.0,
+  "target_fpr": 0.2,
+  "measured_fpr": 0.2,
+  "tpr": 0.533,
+  "auroc": 0.7668845,
+  "n_known": 2000,
+  "n_unknown": 1000,
+  "score_quantiles": {
+    "known": {
+      "0.01": -13.472044944763184,
+      "0.05": -12.287174224853516,
+      "0.5": -6.555760383605957,
+      "0.95": -3.99088454246521,
+      "0.99": -3.2230045795440674
+    },
+    "unknown": {
+      "0.01": -7.41204833984375,
+      "0.05": -6.966856002807617,
+      "0.5": -5.087559700012207,
+      "0.95": -3.551668643951416,
+      "0.99": -2.8652937412261963
+    }
+  },
+  "paths": {
+    "lswmd_pkl": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\data\\LSWMD.pkl",
+    "ckpt": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\models\\20260111_074510_resnet18_R64_polar4_K6_best_e05_weights.pt",
+    "class_to_idx": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\models\\class_to_idx.json",
+    "known_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\known_embeddings.npz",
+    "unknown_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_embeddings.npz"
+  },
+  "preprocess": {
+    "resize": 64,
+    "input_mode": "polar4",
+    "upsample_mode": "nearest"
+  },
+  "seed": 42
+}
