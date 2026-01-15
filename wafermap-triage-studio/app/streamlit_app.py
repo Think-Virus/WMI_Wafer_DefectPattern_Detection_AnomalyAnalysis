@@ -130,6 +130,17 @@ def load_unknown_pool_cached(npz_path: str) -> Dict[str, List[int]]:
 
 
 @st.cache_resource
+def load_unlabeled_pool_cached(npz_path: str) -> List[int]:
+    p = Path(npz_path)
+    if not p.exists():
+        return []
+    obj = np.load(p, allow_pickle=True)
+    if "df_index" not in obj.files:
+        return []
+    return obj["df_index"].astype(np.int64).tolist()
+
+
+@st.cache_resource
 def load_npz_cached(npz_path: str) -> Optional[dict]:
     p = Path(npz_path)
     if not p.exists():
@@ -565,8 +576,8 @@ def main():
         # 선택 모드
         pick_mode = st.sidebar.radio(
             "Pick query",
-            ["Random (any unknown)", "Random by unknown type", "By df_index"],
-            index=1,
+            ["Random (unlabeled sample)", "Random (any unknown)", "Random by unknown type", "By df_index"],
+            index=0,
         )
 
         # 옵션들
@@ -599,6 +610,8 @@ def main():
         preview_note: str = ""
 
         rng = np.random.RandomState(int(seed))
+        unl_npz = str(P.emb_db / "unlabeled_embeddings.npz")
+        unl_pool = load_unlabeled_pool_cached(unl_npz)
 
         if pick_mode == "By df_index":
             if df_index_text.strip():
@@ -619,6 +632,13 @@ def main():
                 preview_note = f"type={unk_type}"
             else:
                 preview_note = f"no candidates for type={unk_type}"
+
+        elif pick_mode == "Random (unlabeled sample)":
+            if unl_pool:
+                preview_dfi = int(rng.choice(unl_pool))
+                preview_note = "random unlabeled"
+            else:
+                preview_note = "unlabeled pool is empty (run build_unlabeled_db.py first)"
 
         else:
             # Random(any unknown): 전체 unknown pool에서 랜덤
@@ -668,6 +688,16 @@ def main():
 
     if summary is None:
         st.stop()
+
+    st.markdown("## Unified cluster affinity (Known + Unknown)")
+    rank = summary.get("cluster_rank_top5", [])
+    tau = summary.get("cluster_rank_tau", None)
+    if tau is not None:
+        st.caption(f"softmax tau = {tau}")
+    if rank:
+        st.dataframe(pd.DataFrame(rank), use_container_width=True)
+    else:
+        st.info("cluster_rank_top5 not found (build cluster_bank + rerun case)")
 
     # Header info
     case_id = summary.get("case_id", "unknown_case")

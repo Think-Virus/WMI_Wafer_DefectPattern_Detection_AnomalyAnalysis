@@ -46,12 +46,20 @@ def failuretype_to_label(ft):
     return s if s else None
 
 
+def softmax(x: np.ndarray) -> np.ndarray:
+    x = x - np.max(x)
+    e = np.exp(x)
+    return e / (e.sum() + 1e-12)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--df-index", type=int, default=None, help="원본 df index. 없으면 unknown DB에서 랜덤 선택")
     ap.add_argument("--k-known", type=int, default=5)
     ap.add_argument("--k-unk", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--tau", type=float, default=0.05)
+    ap.add_argument("--cluster-topn", type=int, default=5)
     args = ap.parse_args()
 
     P = Paths()
@@ -155,12 +163,44 @@ def main():
     out_dir = P.cases / case_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- unified cluster ranking (known classes + unknown clusters) ---
+    bank_npz = P.emb_db / "cluster_bank.npz"
+    cluster_rank_top = []
+
+    if bank_npz.exists():
+        b = np.load(bank_npz, allow_pickle=True)
+        C = b["centroid"].astype(np.float32)  # (M,512), already normalized
+        names = [str(x) for x in b["name"].tolist()]
+        types = [str(x) for x in b["type"].tolist()]
+        reps = b["rep_df_index"].astype(np.int64)
+        cnts = b["count"].astype(np.int32)
+
+        qn = q_emb.astype(np.float32)
+        qn = qn / (np.linalg.norm(qn) + 1e-12)
+
+        sim = (C @ qn).astype(np.float32)  # (M,)
+        prob = softmax(sim / float(args.tau))
+
+        order = np.argsort(prob)[::-1][: int(args.cluster_topn)]
+        for r, j in enumerate(order.tolist()):
+            cluster_rank_top.append({
+                "rank": r + 1,
+                "type": types[j],
+                "name": names[j],
+                "prob": float(prob[j]),
+                "cosine_sim": float(sim[j]),
+                "rep_df_index": int(reps[j]),
+                "count": int(cnts[j]),
+            })
+
     summary = {
         "case_id": case_id,
         "query": {"df_index": int(df_index), "true_label": true_label, "model_top3": model_top3},
         "known_topk": known_topk,
         "unknown_topk": unknown_topk,
         "cluster": cluster_info,
+        "cluster_rank_top5": cluster_rank_top,
+        "cluster_rank_tau": float(args.tau),
         "paths": {
             "lswmd_pkl": str(lswmd_pkl),
             "ckpt": str(ckpt),
