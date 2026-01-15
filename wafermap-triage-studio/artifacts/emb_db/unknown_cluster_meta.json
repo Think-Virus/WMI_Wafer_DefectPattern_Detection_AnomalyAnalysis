@@ -1,0 +1,17 @@
+{
+  "source_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_embeddings.npz",
+  "saved_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_cluster.npz",
+  "saved_reps_json": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_cluster_reps.json",
+  "method": "kmeans",
+  "params": {
+    "k": 2,
+    "seed": 42
+  },
+  "num_samples": 1748,
+  "num_clusters_excluding_noise": 2,
+  "noise_count": 0,
+  "cluster_counts_top10": {
+    "1": 1238,
+    "0": 510
+  }
+}

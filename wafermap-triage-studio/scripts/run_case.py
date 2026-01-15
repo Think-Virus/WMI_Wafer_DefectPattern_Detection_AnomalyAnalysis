@@ -63,7 +63,12 @@ def main():
     args = ap.parse_args()
 
     P = Paths()
-    lswmd_pkl = P.root / "data" / "LSWMD.pkl"
+    cand = [
+        # P.root / "data" / "LSWMD.pkl",
+        P.root / "data" / "LSWMD_small.pkl",
+        P.root / "data" / "LSWMD_small.pkl.gz",
+    ]
+    lswmd_pkl = str(next(p for p in cand if p.exists()))
     ckpt = P.models / "20260111_074510_resnet18_R64_polar4_K6_best_e05.pt"
     class_to_idx_path = P.models / "class_to_idx.json"
 

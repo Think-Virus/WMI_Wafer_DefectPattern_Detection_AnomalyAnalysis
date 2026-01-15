@@ -536,7 +536,13 @@ def main():
     )
 
     # Load DF once (big)
-    lswmd_pkl = str(P.root / "data" / "LSWMD.pkl")
+    cand = [
+        # P.root / "data" / "LSWMD.pkl",
+        P.root / "data" / "LSWMD_small.pkl",
+        P.root / "data" / "LSWMD_small.pkl.gz",
+    ]
+    lswmd_pkl = str(next(p for p in cand if p.exists()))
+
     with st.sidebar.expander("Dataset", expanded=False):
         st.write(f"LSWMD.pkl: `{lswmd_pkl}`")
         load_df = st.button("Load dataset now (cache)")
@@ -618,6 +624,10 @@ def main():
         rng = np.random.RandomState(int(seed))
         unl_npz = str(P.emb_db / "unlabeled_embeddings.npz")
         unl_pool = load_unlabeled_pool_cached(unl_npz)
+
+        df_index_set = set(int(x) for x in df.index.values)
+        unk_pool = {k: [int(i) for i in v if int(i) in df_index_set] for k, v in unk_pool.items()}
+        unk_pool = {k: v for k, v in unk_pool.items() if len(v) > 0}  # 빈 타입 제거
 
         if pick_mode == "By df_index":
             if df_index_text.strip():

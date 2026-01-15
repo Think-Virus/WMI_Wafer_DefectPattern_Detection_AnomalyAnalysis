@@ -1,0 +1,23 @@
+{
+  "created_at": "2026-01-12 00:01:59",
+  "n": 5000,
+  "seed": 42,
+  "device": "cpu",
+  "pkl_path": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\data\\LSWMD.pkl",
+  "ckpt_path": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\models\\20260111_074510_resnet18_R64_polar4_K6_best_e05.pt",
+  "class_to_idx_path": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\models\\class_to_idx.json",
+  "preprocess": {
+    "resize": 64,
+    "input_mode": "polar4",
+    "upsample_mode": "nearest"
+  },
+  "outputs": {
+    "npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unlabeled_embeddings.npz",
+    "meta": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unlabeled_db_meta.json"
+  },
+  "known_sim": {
+    "enabled": true,
+    "known_db": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\known_embeddings.npz",
+    "chunk": 512
+  }
+}

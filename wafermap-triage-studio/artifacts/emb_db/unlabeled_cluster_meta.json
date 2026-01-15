@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-01-12 00:32:08",
+  "input_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unlabeled_embeddings.npz",
+  "method": "kmeans",
+  "k": 12,
+  "seed": 42,
+  "filters": {
+    "min_conf": 0.7,
+    "novel_pct": 10.0,
+    "max_known_sim": null,
+    "pred_label": null
+  },
+  "counts": {
+    "total": 5000,
+    "filtered": 401,
+    "clusters": 12
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "ckpt": "20260111_074510_resnet18_R64_polar4_K6_best_e05.pt",
+  "num_classes": 6,
+  "known_classes": [
+    "Center",
+    "Edge-Loc",
+    "Edge-Ring",
+    "Loc",
+    "Near-full",
+    "Random"
+  ],
+  "preprocess": {
+    "resize": 64,
+    "input_mode": "polar4",
+    "upsample_mode": "nearest",
+    "device": "cpu"
+  },
+  "exclude": [
+    "none"
+  ],
+  "unknown_df_size": 1748,
+  "saved_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_embeddings.npz",
+  "fields": {
+    "emb": "float32 (N,512)",
+    "df_index": "int64 (N,) original df index",
+    "true_label": "str (N,) from failureType-derived label"
+  },
+  "unknown_label_dist_top10": {
+    "Scratch": 1193,
+    "Donut": 555
+  }
+}
