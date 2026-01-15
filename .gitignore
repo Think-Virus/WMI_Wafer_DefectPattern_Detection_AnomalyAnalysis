@@ -8,3 +8,8 @@ reports/
 
 .venv
 .idea
+
+*.pt
+*.pkl
+*.npz
+*.json
