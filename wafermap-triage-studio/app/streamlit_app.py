@@ -164,7 +164,7 @@ def load_json_cached(json_path: str) -> Optional[dict]:
 # -----------------------------
 # UI Components
 # -----------------------------
-def render_wafer_card(df: pd.DataFrame, df_index: int, title: str, subtitle: str = "", scale: int = 8, width: int = 0):
+def render_wafer_card(df: pd.DataFrame, df_index: int, title: str, subtitle: str = "", scale: int = 8, width: int = None):
     if df_index not in df.index:
         st.warning(f"{title}: df_index {df_index} not found in df")
         return
@@ -181,7 +181,7 @@ def render_wafer_card(df: pd.DataFrame, df_index: int, title: str, subtitle: str
         st.write(f"- true_label: `{true_label}`")
     st.write(f"- shape: `{tuple(wafer.shape)}`")
 
-    st.image(wafer_to_pil(wafer, scale=scale), use_container_width=True if not width else width)
+    st.image(wafer_to_pil(wafer, scale=scale), width="stretch" if width is None else width)
 
 
 def render_topk_thumbs(df: pd.DataFrame, items: List[dict], title: str, cols: int = 5, scale: int = 6):
