@@ -1,0 +1,181 @@
+{
+  "case_id": "20260115_161545_df421045",
+  "query": {
+    "df_index": 421045,
+    "true_label": "Scratch",
+    "model_top3": [
+      {
+        "rank": 1,
+        "class": "Loc",
+        "idx": 3,
+        "prob": 0.9849875569343567
+      },
+      {
+        "rank": 2,
+        "class": "Edge-Loc",
+        "idx": 1,
+        "prob": 0.00568623561412096
+      },
+      {
+        "rank": 3,
+        "class": "Edge-Ring",
+        "idx": 2,
+        "prob": 0.0052870106883347034
+      }
+    ]
+  },
+  "known_topk": [
+    {
+      "rank": 1,
+      "df_index": 100401,
+      "y": 3,
+      "label": "Loc",
+      "cosine_sim": 0.9897056221961975
+    },
+    {
+      "rank": 2,
+      "df_index": 370304,
+      "y": 3,
+      "label": "Loc",
+      "cosine_sim": 0.9889528751373291
+    },
+    {
+      "rank": 3,
+      "df_index": 307539,
+      "y": 3,
+      "label": "Loc",
+      "cosine_sim": 0.9870082139968872
+    },
+    {
+      "rank": 4,
+      "df_index": 382892,
+      "y": 3,
+      "label": "Loc",
+      "cosine_sim": 0.9868709444999695
+    },
+    {
+      "rank": 5,
+      "df_index": 245688,
+      "y": 3,
+      "label": "Loc",
+      "cosine_sim": 0.9868416786193848
+    }
+  ],
+  "unknown_topk": [
+    {
+      "df_index": 320186,
+      "cosine_sim": 0.9925562739372253,
+      "true_label": "Scratch",
+      "rank": 1,
+      "cluster_id": 1
+    },
+    {
+      "df_index": 275709,
+      "cosine_sim": 0.9914196729660034,
+      "true_label": "Scratch",
+      "rank": 2,
+      "cluster_id": 1
+    },
+    {
+      "df_index": 334261,
+      "cosine_sim": 0.9889930486679077,
+      "true_label": "Scratch",
+      "rank": 3,
+      "cluster_id": 1
+    },
+    {
+      "df_index": 740426,
+      "cosine_sim": 0.9888644814491272,
+      "true_label": "Scratch",
+      "rank": 4,
+      "cluster_id": 1
+    },
+    {
+      "df_index": 716941,
+      "cosine_sim": 0.9888498783111572,
+      "true_label": "Scratch",
+      "rank": 5,
+      "cluster_id": 1
+    }
+  ],
+  "cluster": {
+    "available": true,
+    "dataset": "unknown",
+    "method": "kmeans",
+    "cluster_id": 1,
+    "rep_df_index": 281674,
+    "meta": {
+      "source_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_embeddings.npz",
+      "saved_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_cluster.npz",
+      "saved_reps_json": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_cluster_reps.json",
+      "method": "kmeans",
+      "params": {
+        "k": 2,
+        "seed": 42
+      },
+      "num_samples": 1748,
+      "num_clusters_excluding_noise": 2,
+      "noise_count": 0,
+      "cluster_counts_top10": {
+        "1": 1238,
+        "0": 510
+      }
+    },
+    "cluster_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_cluster.npz"
+  },
+  "cluster_rank_top5": [
+    {
+      "rank": 1,
+      "type": "unknown_cluster",
+      "name": "unknown_cluster:1",
+      "prob": 0.5925273895263672,
+      "cosine_sim": 0.9362802505493164,
+      "rep_df_index": 281674,
+      "count": 1238
+    },
+    {
+      "rank": 2,
+      "type": "known_class",
+      "name": "known:Loc",
+      "prob": 0.3220624625682831,
+      "cosine_sim": 0.9057977199554443,
+      "rep_df_index": 713494,
+      "count": 1500
+    },
+    {
+      "rank": 3,
+      "type": "unknown_cluster",
+      "name": "unknown_cluster:0",
+      "prob": 0.08173917979001999,
+      "cosine_sim": 0.8372371196746826,
+      "rep_df_index": 279840,
+      "count": 510
+    },
+    {
+      "rank": 4,
+      "type": "known_class",
+      "name": "known:Center",
+      "prob": 0.0022331092040985823,
+      "cosine_sim": 0.6572301387786865,
+      "rep_df_index": 624300,
+      "count": 1500
+    },
+    {
+      "rank": 5,
+      "type": "known_class",
+      "name": "known:Edge-Loc",
+      "prob": 0.0011775639140978456,
+      "cosine_sim": 0.6252328157424927,
+      "rep_df_index": 62797,
+      "count": 1500
+    }
+  ],
+  "cluster_rank_tau": 0.05,
+  "paths": {
+    "lswmd_pkl": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\data\\LSWMD_small.pkl.gz",
+    "ckpt": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\models\\20260111_074510_resnet18_R64_polar4_K6_best_e05_weights.pt",
+    "known_db": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\known_embeddings.npz",
+    "unknown_db": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_embeddings.npz",
+    "cluster_npz": "C:\\Users\\user\\PycharmProjects\\WMI_Wafer_DefectPattern_Detection_AnomalyAnalysis\\wafermap-triage-studio\\artifacts\\emb_db\\unknown_cluster.npz"
+  }
+}
