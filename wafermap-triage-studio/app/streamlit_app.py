@@ -680,6 +680,10 @@ def main():
         # Run (Preview에서 확정된 df_index를 그대로 사용)
         # -----------------
         if st.sidebar.button("Run"):
+            st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
+            st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
+            st.stop()
+
             # 실행 df_index 결정
             if pick_mode == "By df_index":
                 dfi = int(df_index_text) if df_index_text.strip() else None
