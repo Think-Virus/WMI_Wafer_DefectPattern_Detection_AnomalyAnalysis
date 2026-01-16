@@ -456,9 +456,9 @@ def render_unlabeled_review(df: pd.DataFrame, P: Paths) -> Tuple[Optional[Dict[s
     k_unk = st.number_input("k_unk", min_value=1, max_value=50, value=5, step=1, key="unl_k_unk")
 
     if st.button("Run case with this df_index", key="unl_run_case_btn"):
-        # st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
-        # st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
-        # st.stop()
+        st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
+        st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
+        st.stop()
 
         code, log = run_case_subprocess(P.root, int(pick_dfi), int(k_known), int(k_unk), int(seed))
         st.code(log)
@@ -684,9 +684,9 @@ def main():
         # Run (Preview에서 확정된 df_index를 그대로 사용)
         # -----------------
         if st.sidebar.button("Run"):
-            # st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
-            # st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
-            # st.stop()
+            st.toast("⚠️ 현재 배포 서버 메모리 제한으로 RUN 기능이 비활성화되어 있습니다.", icon="⚠️")
+            st.info("RUN은 로컬 환경에서 실행해 주세요. (배포 서버에서는 뷰어 기능만 제공)")
+            st.stop()
 
             # 실행 df_index 결정
             if pick_mode == "By df_index":
